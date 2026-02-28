@@ -74,7 +74,7 @@ CONFIG='{
             "enabled": true,
             "mode": "whitelist",
             "levels": ["error"],
-            "keywords": ["starting account", "collected", "ACCOUNT-END", "ACCOUNT-ERROR", "RUN-END"],
+            "keywords": ["ACCOUNT-END", "RUN-END", "ACCOUNT-ERROR"],
             "regexPatterns": []
         }
     }
