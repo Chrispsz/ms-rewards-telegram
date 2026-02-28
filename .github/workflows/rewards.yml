@@ -1,0 +1,149 @@
+name: Microsoft Rewards Daily Run
+
+on:
+    schedule:
+        # Roda todo dia às 7:00 UTC (pode ajustar)
+        - cron: '0 7 * * *'
+    workflow_dispatch:
+        # Permite rodar manualmente
+
+env:
+    NODE_VERSION: '24'
+
+jobs:
+    run-rewards:
+        runs-on: ubuntu-latest
+        timeout-minutes: 90
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build script
+              run: npm run build
+
+            - name: Install Chromium
+              run: npx patchright install chromium
+
+            - name: Create accounts.json
+              run: |
+                  cat > dist/accounts.json << 'EOF'
+                  [
+                      {
+                          "email": "${{ secrets.ACCOUNT_EMAIL }}",
+                          "password": "${{ secrets.ACCOUNT_PASSWORD }}",
+                          "totpSecret": "${{ secrets.ACCOUNT_TOTP_SECRET }}",
+                          "recoveryEmail": "${{ secrets.ACCOUNT_RECOVERY_EMAIL }}",
+                          "geoLocale": "${{ secrets.ACCOUNT_GEO_LOCALE }}",
+                          "langCode": "${{ secrets.ACCOUNT_LANG_CODE }}",
+                          "proxy": {
+                              "proxyAxios": false,
+                              "url": "",
+                              "port": 0,
+                              "username": "",
+                              "password": ""
+                          },
+                          "saveFingerprint": {
+                              "mobile": false,
+                              "desktop": false
+                          }
+                      }
+                  ]
+                  EOF
+
+            - name: Create config.json
+              run: |
+                  cat > dist/config.json << 'EOF'
+                  {
+                      "baseURL": "https://rewards.bing.com",
+                      "sessionPath": "sessions",
+                      "headless": true,
+                      "clusters": 1,
+                      "errorDiagnostics": false,
+                      "workers": {
+                          "doDailySet": true,
+                          "doSpecialPromotions": true,
+                          "doMorePromotions": true,
+                          "doPunchCards": true,
+                          "doAppPromotions": true,
+                          "doDesktopSearch": true,
+                          "doMobileSearch": true,
+                          "doDailyCheckIn": true,
+                          "doReadToEarn": true
+                      },
+                      "searchOnBingLocalQueries": false,
+                      "globalTimeout": "30sec",
+                      "searchSettings": {
+                          "scrollRandomResults": false,
+                          "clickRandomResults": false,
+                          "parallelSearching": true,
+                          "queryEngines": ["google", "wikipedia", "reddit", "local"],
+                          "searchResultVisitTime": "10sec",
+                          "searchDelay": { "min": "30sec", "max": "1min" },
+                          "readDelay": { "min": "30sec", "max": "1min" }
+                      },
+                      "debugLogs": false,
+                      "consoleLogFilter": { "enabled": false, "mode": "whitelist", "levels": ["error", "warn"], "keywords": ["starting account"], "regexPatterns": [] },
+                      "proxy": { "queryEngine": true },
+                      "webhook": {
+                          "telegram": {
+                              "enabled": ${{ secrets.TELEGRAM_ENABLED }},
+                              "botToken": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
+                              "chatId": "${{ secrets.TELEGRAM_CHAT_ID }}",
+                              "parseMode": "HTML",
+                              "silent": false
+                          },
+                          "ntfy": {
+                              "enabled": false,
+                              "url": "",
+                              "topic": "",
+                              "token": "",
+                              "title": "Microsoft-Rewards-Script",
+                              "tags": ["bot", "notify"],
+                              "priority": 3
+                          },
+                          "webhookLogFilter": {
+                              "enabled": true,
+                              "mode": "whitelist",
+                              "levels": ["error"],
+                              "keywords": ["starting account", "select number", "collected", "ACCOUNT-END", "ACCOUNT-ERROR"],
+                              "regexPatterns": []
+                          }
+                      }
+                  }
+                  EOF
+
+            - name: Restore sessions cache
+              uses: actions/cache@v4
+              with:
+                  path: dist/browser/sessions
+                  key: rewards-sessions-${{ github.run_id }}
+                  restore-keys: rewards-sessions-
+
+            - name: Run Microsoft Rewards Script
+              run: npm start
+
+            - name: Save sessions cache
+              uses: actions/cache/save@v4
+              with:
+                  path: dist/browser/sessions
+                  key: rewards-sessions-${{ github.run_id }}
+
+            - name: Upload logs on failure
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: rewards-logs-${{ github.run_id }}
+                  path: |
+                      logs/
+                      diagnostics/
+                  retention-days: 7
