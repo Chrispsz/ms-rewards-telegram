@@ -83,7 +83,7 @@ CONFIG='{
 INSTALL_DIR="$HOME/ms-rewards"
 AUTO_SHUTDOWN=true
 SHUTDOWN_DELAY=2
-SCHEDULE_TIME="07:00"
+SCHEDULE_TIME="21:00"
 
 detect_system() {
     if [ -f /etc/os-release ]; then

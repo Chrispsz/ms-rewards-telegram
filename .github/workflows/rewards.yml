@@ -2,7 +2,7 @@ name: Microsoft Rewards Daily Run
 
 on:
     schedule:
-        - cron: '0 10 * * *'
+        - cron: '0 0 * * *'    # 21:00 Brasília (melhor horário - todas atividades do dia já liberadas)
     workflow_dispatch:
 
 env:
