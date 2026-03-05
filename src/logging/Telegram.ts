@@ -33,10 +33,67 @@ function getLevelEmoji(level: LogLevel): string {
     return emojis[level] || 'ℹ️'
 }
 
+// Extrair nome curto do email
+function getShortName(email: string): string {
+    if (!email) return 'unknown'
+    const name = email.split('@')[0] || 'unknown'
+    // Pegar primeiro nome se for nome completo
+    const shortName = name.split('.')[0]?.split('_')[0] || name
+    return shortName.substring(0, 15)
+}
+
+// Formatar mensagem de forma limpa
 function formatMessage(content: string, level: LogLevel): string {
     const emoji = getLevelEmoji(level)
-    const escaped = escapeHTML(content)
-    return `${emoji} <pre>${escaped}</pre>`
+
+    // ACCOUNT-END: Extrair info e formatar limpo
+    if (content.includes('ACCOUNT-END')) {
+        const emailMatch = content.match(/Completed account: ([^\s]+)/)
+        const totalMatch = content.match(/Total: \+(\d+)/)
+        const oldMatch = content.match(/Old: (\d+)/)
+        const newMatch = content.match(/New: (\d+)/)
+
+        if (emailMatch && totalMatch && emailMatch[1] && totalMatch[1]) {
+            const name = getShortName(emailMatch[1])
+            const total = totalMatch[1]
+            const oldPts = oldMatch?.[1] ?? '?'
+            const newPts = newMatch?.[1] ?? '?'
+
+            return `${emoji} <b>${name}</b>: <code>+${total}</code> pts <i>(${oldPts} → ${newPts})</i>`
+        }
+    }
+
+    // RUN-END: Resumo final consolidado
+    if (content.includes('RUN-END')) {
+        const accountsMatch = content.match(/Accounts processed: (\d+)/)
+        const totalMatch = content.match(/Total points collected: \+(\d+)/)
+        const oldMatch = content.match(/Old total: (\d+)/)
+        const newMatch = content.match(/New total: (\d+)/)
+        const timeMatch = content.match(/Total runtime: ([\d.]+)min/)
+
+        if (totalMatch) {
+            const accounts = accountsMatch ? accountsMatch[1] : '?'
+            const total = totalMatch[1]
+            const oldPts = oldMatch ? oldMatch[1] : '?'
+            const newPts = newMatch ? newMatch[1] : '?'
+            const time = timeMatch ? timeMatch[1] : '?'
+
+            return `📊 <b>RESUMO</b>: <code>+${total}</code> pts em ${accounts} conta(s) | <i>${oldPts} → ${newPts}</i> | ⏱️ ${time}min`
+        }
+    }
+
+    // ACCOUNT-ERROR: Erro de conta
+    if (content.includes('ACCOUNT-ERROR')) {
+        const emailMatch = content.match(/\[ACCOUNT-ERROR\] ([^\s:]+):?(.*)/)
+        if (emailMatch && emailMatch[1]) {
+            const name = getShortName(emailMatch[1])
+            const error = emailMatch[2] ? emailMatch[2].trim().substring(0, 50) : 'Erro desconhecido'
+            return `❌ <b>${name}</b>: ${escapeHTML(error)}`
+        }
+    }
+
+    // Fallback para mensagens não reconhecidas
+    return `${emoji} <pre>${escapeHTML(content)}</pre>`
 }
 
 export async function sendTelegram(
