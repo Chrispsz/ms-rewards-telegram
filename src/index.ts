@@ -21,7 +21,7 @@ import { SearchManager } from './functions/SearchManager'
 
 import type { Account } from './interface/Account'
 import AxiosClient from './util/Axios'
-import { sendDiscord, flushDiscordQueue } from './logging/Discord'
+import { sendTelegram, flushTelegramQueue } from './logging/Telegram'
 import { sendNtfy, flushNtfyQueue } from './logging/Ntfy'
 import type { DashboardData } from './interface/DashboardData'
 import type { AppDashboardData } from './interface/AppDashBoardData'
@@ -57,7 +57,7 @@ export function getCurrentContext(): ExecutionContext {
 }
 
 async function flushAllWebhooks(timeoutMs = 5000): Promise<void> {
-    await Promise.allSettled([flushDiscordQueue(timeoutMs), flushNtfyQueue(timeoutMs)])
+    await Promise.allSettled([flushTelegramQueue(timeoutMs), flushNtfyQueue(timeoutMs)])
 }
 
 interface UserData {
@@ -177,11 +177,14 @@ export class MicrosoftRewardsBot {
                     const { webhook } = this.config
                     const { content, level } = log
 
-                    // Webhooks, for later expansion?
-                    if (webhook.discord?.enabled && webhook.discord.url) {
-                        sendDiscord(webhook.discord.url, content, level)
+                    // Telegram webhook
+                    if (webhook.telegram?.enabled && webhook.telegram.botToken && webhook.telegram.chatId) {
+                        if (level === 'debug') return
+                        sendTelegram(webhook.telegram, content, level)
                     }
+                    // Ntfy webhook
                     if (webhook.ntfy?.enabled && webhook.ntfy.url) {
+                        if (level === 'debug') return
                         sendNtfy(webhook.ntfy, content, level)
                     }
                 }
@@ -240,7 +243,7 @@ export class MicrosoftRewardsBot {
 
         cluster.on('disconnect', worker => {
             const pid = worker.process?.pid
-            this.logger.warn('main', 'CLUSTER-WORKER-DISCONNECT', `Worker ${pid ?? '?'} disconnected`) // <-- Warning only
+            this.logger.warn('main', 'CLUSTER-WORKER-DISCONNECT', `Worker ${pid ?? '?'} disconnected`)
         })
     }
 
